@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# SECRETS AND CREDENTIALS
+# Never commit these. If you ever do, rotate the credential immediately -
+# removing it in a later commit does NOT remove it from git history.
+# ---------------------------------------------------------------------------
+*.env
+.env
+.env.*
+*.pfx
+*.p12
+*.key
+*.pem
+*.cer
+*.crt
+*secret*
+*password*
+*credential*
+*.publishsettings
+azureauth.json
+local.settings.json
+
+# Bicep / ARM parameter files often contain real values - commit only
+# templates with placeholders, and name real ones *.local.*
+*.local.json
+*.local.bicepparam
+*.secrets.json
+
+# ---------------------------------------------------------------------------
+# AZURE TOOLING
+# ---------------------------------------------------------------------------
+.azure/
+*.azurePubxml
+
+# ---------------------------------------------------------------------------
+# LARGE MEDIA - keep locally, they bloat the repository
+# Remove the mp4 line if you want your recorded presentation in the repo and
+# the file is small.
+# ---------------------------------------------------------------------------
+*.mp4
+*.mov
+*.avi
+*.zip
+*.7z
+*.iso
+*.vhd
+*.vhdx
+*.bacpac
+
+# ---------------------------------------------------------------------------
+# OFFICE TEMP FILES
+# ---------------------------------------------------------------------------
+~$*
+*.tmp
+.~lock.*
+
+# ---------------------------------------------------------------------------
+# OS AND EDITOR
+# ---------------------------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.vscode/settings.json
+.idea/
+
+# ---------------------------------------------------------------------------
+# PYTHON
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ---------------------------------------------------------------------------
+# LOGS AND OUTPUT
+# ---------------------------------------------------------------------------
+*.log
+output/
+temp/

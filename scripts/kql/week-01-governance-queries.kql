@@ -1,0 +1,129 @@
+// =============================================================================
+// Azure Resource Graph queries - Week 1
+// Run in: Portal -> Resource Graph Explorer
+//
+// Resource Graph uses KQL, the same language as Log Analytics and Azure Monitor.
+// Getting an early hour with KQL here pays off considerably in Week 9.
+// =============================================================================
+
+
+// -----------------------------------------------------------------------------
+// 1. Everything I own, with tags
+// -----------------------------------------------------------------------------
+resources
+| project name, type, location, resourceGroup, tags
+| order by type asc
+
+
+// -----------------------------------------------------------------------------
+// 2. Resource groups and their tags
+//    Note: resource groups live in `resourcecontainers`, not `resources`
+// -----------------------------------------------------------------------------
+resourcecontainers
+| where type == "microsoft.resources/subscriptions/resourcegroups"
+| project name, location, tags
+| order by name asc
+
+
+// -----------------------------------------------------------------------------
+// 3. GOVERNANCE - resources missing the DataClassification tag
+//    This is a real compliance control in miniature. In a healthcare environment
+//    an untagged resource is one you cannot reason about, because you do not
+//    know whether it holds PHI.
+// -----------------------------------------------------------------------------
+resources
+| where isnull(tags.DataClassification) or tostring(tags.DataClassification) == ""
+| project name, type, resourceGroup, location
+| order by type asc
+
+
+// -----------------------------------------------------------------------------
+// 4. GOVERNANCE - resources missing any of the eight mandatory tags
+// -----------------------------------------------------------------------------
+resources
+| extend
+    MissingEnvironment  = isnull(tags.Environment),
+    MissingApplication  = isnull(tags.Application),
+    MissingOwner        = isnull(tags.Owner),
+    MissingCostCentre   = isnull(tags.CostCentre),
+    MissingClass        = isnull(tags.DataClassification),
+    MissingCriticality  = isnull(tags.Criticality),
+    MissingManagedBy    = isnull(tags.ManagedBy),
+    MissingCreatedDate  = isnull(tags.CreatedDate)
+| extend MissingCount = toint(MissingEnvironment) + toint(MissingApplication)
+                      + toint(MissingOwner) + toint(MissingCostCentre)
+                      + toint(MissingClass) + toint(MissingCriticality)
+                      + toint(MissingManagedBy) + toint(MissingCreatedDate)
+| where MissingCount > 0
+| project name, type, resourceGroup, MissingCount
+| order by MissingCount desc
+
+
+// -----------------------------------------------------------------------------
+// 5. COST - resource count by type, to spot what is accumulating
+// -----------------------------------------------------------------------------
+resources
+| summarize Count = count() by type
+| order by Count desc
+
+
+// -----------------------------------------------------------------------------
+// 6. COST - unattached managed disks
+//    One of the classic silent costs. Disks bill on provisioned size and keep
+//    billing after the VM they belonged to is deleted.
+//    Referenced in INC-001.
+// -----------------------------------------------------------------------------
+resources
+| where type == "microsoft.compute/disks"
+| where properties.diskState == "Unattached"
+| project name, resourceGroup, location,
+          SizeGB = properties.diskSizeGB,
+          SKU = sku.name,
+          TimeCreated = properties.timeCreated
+| order by toint(SizeGB) desc
+
+
+// -----------------------------------------------------------------------------
+// 7. COST - public IP addresses not associated with anything
+//    Standard SKU public IPs bill whether attached or not.
+// -----------------------------------------------------------------------------
+resources
+| where type == "microsoft.network/publicipaddresses"
+| where isnull(properties.ipConfiguration)
+| project name, resourceGroup, location, SKU = sku.name,
+          AllocationMethod = properties.publicIPAllocationMethod
+
+
+// -----------------------------------------------------------------------------
+// 8. SECURITY - storage accounts allowing public blob access
+//    Foreshadows the Week 5 incident. Worth having in place before you need it.
+// -----------------------------------------------------------------------------
+resources
+| where type == "microsoft.storage/storageaccounts"
+| project name, resourceGroup, location,
+          AllowBlobPublicAccess = properties.allowBlobPublicAccess,
+          MinimumTlsVersion = properties.minimumTlsVersion,
+          HttpsOnly = properties.supportsHttpsTrafficOnly,
+          SKU = sku.name
+| order by name asc
+
+
+// -----------------------------------------------------------------------------
+// 9. Resources not deployed by Bicep (drift detection - useful from Week 8)
+// -----------------------------------------------------------------------------
+resources
+| where tostring(tags.ManagedBy) != "bicep"
+| project name, type, resourceGroup, ManagedBy = tags.ManagedBy
+
+
+// -----------------------------------------------------------------------------
+// 10. Sandbox resources past their DeleteAfter date
+//     The control added as INC-001 action item 1.
+// -----------------------------------------------------------------------------
+resources
+| where tostring(tags.Environment) == "sandbox"
+| extend DeleteAfter = todatetime(tags.DeleteAfter)
+| where isnotnull(DeleteAfter) and DeleteAfter < now()
+| project name, type, resourceGroup, DeleteAfter,
+          DaysOverdue = datetime_diff('day', now(), DeleteAfter)
+| order by DaysOverdue desc

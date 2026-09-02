@@ -1,0 +1,78 @@
+# =============================================================================
+# Northgate Health Partners - Management group hierarchy
+# Week 1, Task D3
+# =============================================================================
+#
+# PREREQUISITE
+# Management groups must be enabled first (Portal -> Management groups ->
+# "Start using management groups").
+#
+# If you get an authorization error, you need Management Group Contributor at
+# root scope. Elevate temporarily:
+#   Portal -> Microsoft Entra ID -> Properties ->
+#   "Access management for Azure resources" -> Yes
+#   Then sign out COMPLETELY and sign back in.
+#   Turn it back off when finished, and note in your repo that you did this -
+#   the elevation toggle is a Week 4 topic you have just met early.
+#
+# DESIGN
+#   Tenant Root Group
+#   └── mg-northgate                       Northgate Health Partners
+#       ├── mg-northgate-platform          Shared services: network, identity, monitoring
+#       └── mg-northgate-workloads         Application workloads
+#           ├── mg-northgate-prod          Production
+#           └── mg-northgate-nonprod       Non-production
+#
+# The platform/workload split exists because shared infrastructure has a
+# different lifecycle, a different change cadence and a different set of
+# people who should be able to touch it than application resources do.
+#
+# With only one subscription, it goes under mg-northgate-prod. Document that
+# compromise rather than pretending you have an enterprise estate - a second
+# subscription for non-production is the first thing to add when budget allows.
+# =============================================================================
+
+# --- Top level ---------------------------------------------------------------
+az account management-group create \
+  --name "mg-northgate" \
+  --display-name "Northgate Health Partners"
+
+# --- Platform vs workloads ---------------------------------------------------
+az account management-group create \
+  --name "mg-northgate-platform" \
+  --display-name "Platform" \
+  --parent "mg-northgate"
+
+az account management-group create \
+  --name "mg-northgate-workloads" \
+  --display-name "Workloads" \
+  --parent "mg-northgate"
+
+# --- Environment split -------------------------------------------------------
+az account management-group create \
+  --name "mg-northgate-prod" \
+  --display-name "Production" \
+  --parent "mg-northgate-workloads"
+
+az account management-group create \
+  --name "mg-northgate-nonprod" \
+  --display-name "Non-Production" \
+  --parent "mg-northgate-workloads"
+
+# --- Move the subscription into Production -----------------------------------
+# PowerShell:
+#   $subId = (az account show --query id -o tsv)
+#   az account management-group subscription add --name "mg-northgate-prod" --subscription $subId
+#
+# Bash:
+#   subId=$(az account show --query id -o tsv)
+#   az account management-group subscription add --name "mg-northgate-prod" --subscription $subId
+
+# --- Verify ------------------------------------------------------------------
+az account management-group list --output table
+
+# Show the full hierarchy including children
+az account management-group show --name "mg-northgate" --expand --recurse --output json
+
+# Management group changes can take a few minutes to propagate.
+# Confirm the hierarchy renders correctly in the portal and screenshot it.
